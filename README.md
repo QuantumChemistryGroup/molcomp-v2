@@ -1,8 +1,7 @@
 # Molcomp-v2 (Pure C11 / OpenMP Implementation)
 
 > [!NOTE]
-> A fast, standalone, dependency-free **C11 / OpenMP** implementation of **Molcomp** (pairwise 3P-KHG conformer comparison) and **Moldedupl** (high-throughput parallel conformer deduplication).  
-> For exact numerical reproduction of the benchmarks published in the paper, please use the original prototype in the root directory.
+> A standalone **C11 / OpenMP** implementation of **Molcomp** and **Moldedupl**. For exact benchmark reproduction, see [`QuantumChemistryGroup/molcomp`](https://github.com/QuantumChemistryGroup/molcomp).
 
 ---
 
