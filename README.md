@@ -92,7 +92,7 @@ The C11/OpenMP refactoring, memory-safety fixes, and precomputation architecture
 
 * **Prebuilt Static Linux x86-64 Binaries:** Standalone executables (`molcomp` and `moldedupl`) requiring zero external runtime libraries are now available on the [Releases](https://github.com) page (built via `compile_github.sh` with `-march=x86-64 -static`).
 * **Adaptive Memory Management:** `moldedupl` automatically queries `MemAvailable` from `/proc/meminfo`, sizes the lock-free triangular pair bitset within available RAM, and switches to a low-memory disk-streaming mode when input ensembles exceed 40% of free RAM.
-* **Large-Ensemble Guard:** The deterministic exact post-pass now runs automatically for ensembles up to `25,000` active conformers (and can be forced for larger sets via `MC_FORCE_EXACT=1`).
+* **Large-Ensemble Guard:** The deterministic exact post-pass now runs automatically for ensembles up to `1,000` active conformers (and can be forced for larger sets via `MC_FORCE_EXACT=1`).
 
 ## Author & Development Note
 
