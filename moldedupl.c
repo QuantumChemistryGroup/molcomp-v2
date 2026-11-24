@@ -54,6 +54,28 @@ typedef struct {
     bool readtopo;
 } DedupConfig;
 
+static size_t get_cgroup_limit_bytes(void) {
+    size_t lim = 0;
+    FILE *f = fopen("/sys/fs/cgroup/memory.max", "r");
+    if (f) {
+        char buf[64] = "";
+        if (fgets(buf, sizeof(buf), f) && strncmp(buf, "max", 3) != 0) {
+            unsigned long long v = strtoull(buf, NULL, 10);
+            if (v > 0 && v < (1ULL << 62)) lim = (size_t)v;
+        }
+        fclose(f);
+    }
+    if (lim == 0) {
+        f = fopen("/sys/fs/cgroup/memory/memory.limit_in_bytes", "r");
+        if (f) {
+            unsigned long long v = 0;
+            if (fscanf(f, "%llu", &v) == 1 && v > 0 && v < (1ULL << 62)) lim = (size_t)v;
+            fclose(f);
+        }
+    }
+    return lim;
+}
+
 static size_t get_mem_available_bytes(void) {
     FILE *f = fopen("/proc/meminfo", "r");
     if (!f) return 0;
@@ -63,7 +85,10 @@ static size_t get_mem_available_bytes(void) {
         if (sscanf(buf, "MemAvailable: %llu kB", &kb) == 1) break;
     }
     fclose(f);
-    return (size_t)(kb * 1024ULL);
+    size_t avail_ = (size_t)(kb * 1024ULL);
+size_t lim_ = get_cgroup_limit_bytes();
+if (lim_ > 0 && (avail_ == 0 || lim_ < avail_)) avail_ = lim_;
+return avail_;
 }
 
 typedef struct {
@@ -316,6 +341,17 @@ static bool load_one_xyz(
         }
         fclose(fp);
         return true;
+    }
+}
+
+static void load_xyz_or_die(FILE *fp, bool single_file, const ConfItem *item,
+                            long int natoms, double *out) {
+    if (!out) { fprintf(stderr, "FATAL: xyz buffer is NULL\n"); exit(1); }
+    if (single_file && !fp) { fprintf(stderr, "FATAL: input stream is NULL\n"); exit(1); }
+    if (!load_one_xyz(fp, single_file, item, natoms, out)) {
+        fprintf(stderr, "FATAL: cannot read conformer '%s' (offset %ld)\n",
+                item->name, item->file_offset);
+        exit(1);
     }
 }
 
@@ -650,8 +686,8 @@ int main(int argc, char **argv) {
         memcpy(xyz_refN, confs[nconfs - 1].xyz, (size_t)(3 * natoms) * sizeof(double));
     } else {
         FILE *ftmp = single_file ? fopen(input_file, "r") : NULL;
-        load_one_xyz(ftmp, single_file, &confs[0], natoms, xyz_ref0);
-        load_one_xyz(ftmp, single_file, &confs[nconfs - 1], natoms, xyz_refN);
+        load_xyz_or_die(ftmp, single_file, &confs[0], natoms, xyz_ref0);
+        load_xyz_or_die(ftmp, single_file, &confs[nconfs - 1], natoms, xyz_refN);
         if (ftmp) fclose(ftmp);
     }
     
@@ -699,7 +735,7 @@ int main(int argc, char **argv) {
         for (long int c = 0; c < nconfs; c++) {
             const double *c_xyz = confs[c].xyz;
             if (disk_mode) {
-                load_one_xyz(t_fp, single_file, &confs[c], natoms, t_xyz);
+                load_xyz_or_die(t_fp, single_file, &confs[c], natoms, t_xyz);
                 c_xyz = t_xyz;
             }
             int idx = confs[c].ndesc;
@@ -780,7 +816,7 @@ int main(int argc, char **argv) {
                         chunk_xyz = realloc(chunk_xyz, (size_t)(chunk_xyz_cap * 3 * natoms) * sizeof(double));
                     }
                     for (long int k = 0; k < len; k++) {
-                        load_one_xyz(t_fp, single_file, active[start + k], natoms,
+                        load_xyz_or_die(t_fp, single_file, active[start + k], natoms,
                                      chunk_xyz + (size_t)(k * 3 * natoms));
                     }
                 }
@@ -935,6 +971,7 @@ int main(int argc, char **argv) {
         DupRecord *exact_dups = NULL;
         long int n_exact = 0, exact_cap = 0, exact_tested = 0;
         long int done_i = 0;
+        int exact_timed_out = 0;
         long int step_i = (n_active > 10) ? ((n_active - 1) / 10) : 1;
         
         #pragma omp parallel
@@ -952,7 +989,7 @@ int main(int argc, char **argv) {
                            (now_sec() - t_start) / 60.0);
                     fflush(stdout);
                 }
-                if ((now_sec() - t_start) > time_budget) continue;
+                if ((now_sec() - t_start) > time_budget) { __atomic_store_n(&exact_timed_out, 1, __ATOMIC_RELAXED); continue; }
                 
                 ConfItem *ci = active[i];
                 double d0_i = *(ci->desc + 0);
@@ -1023,7 +1060,7 @@ int main(int argc, char **argv) {
         }
         n_active = w;
         total_tested += exact_tested;
-        printf("[exact] Tested %ld extra pairs, total DUP = %ld\n", exact_tested, ndups);
+        printf("[exact] %sTested %ld extra pairs, total DUP = %ld\n", exact_timed_out ? "PARTIAL (time budget hit): " : "", exact_tested, ndups);
         fflush(stdout);
     }
     
@@ -1065,7 +1102,7 @@ int main(int argc, char **argv) {
                 const ConfItem *ci = active[i];
                 const double *c_xyz = ci->xyz;
                 if (disk_mode) {
-                    load_one_xyz(fi, true, ci, natoms, tmp_xyz);
+                    load_xyz_or_die(fi, true, ci, natoms, tmp_xyz);
                     c_xyz = tmp_xyz;
                 }
                 fprintf(fo, "%ld\n", natoms);
