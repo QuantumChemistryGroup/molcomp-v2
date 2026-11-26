@@ -78,7 +78,7 @@ Generates `unique-angle/`, `dup-angle.txt`, and `DUPXYZ-angle.txt`.
 
 When using this code, please cite:
 
-> *"Molcomp: a software tool for the structural characterization and deduplication of conformers"*, A.M. Genaev, A.D. Moshchenkov, A.S. Ryzhako, A.A. Otlyotov, and Y. Minenkov, *Submitted*, 2026.
+> *"Molcomp: a software tool for the structural characterization and deduplication of conformers"*, A.M. Genaev, A.D. Moshchenkov, A.S. Ryzhako, A.A. Otlyotov, and Y. Minenkov, Adv. Theor. Simul. (2026), 9, e70604. https://doi.org/10.1002/adts.70604 
 
 For inquiries, questions, or suggestions: `Yury.Minenkov@gmail.com`
 
